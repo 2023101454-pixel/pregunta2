@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador Epidemiológico - Dengue (Modelo SIR)</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0a001f, #1a0033);
+            color: #e0d4ff;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        .panel {
+            background: #120824;
+            padding: 28px;
+            border-radius: 18px;
+            box-shadow: 0 0 40px rgba(139, 92, 246, 0.25);
+            width: 100%;
+            max-width: 980px;
+            border: 1px solid #6b46c1;
+        }
+        h2 {
+            color: #c084fc;
+            text-align: center;
+            margin: 0 0 25px 0;
+            font-size: 1.95em;
+            text-shadow: 0 0 15px rgba(192, 132, 252, 0.6);
+        }
+
+        /* Controles */
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            background: #1a1033;
+            padding: 22px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+            border: 1px solid #7c3aed;
+        }
+        .control-group label {
+            margin-bottom: 8px;
+            color: #c4b5fd;
+            font-size: 0.97em;
+        }
+        input[type="range"] {
+            accent-color: #c084fc;
+        }
+        .val-display {
+            font-weight: bold;
+            color: #e0bbff;
+            margin-left: 12px;
+        }
+
+        /* Botones */
+        .buttons {
+            display: flex;
+            gap: 14px;
+            margin-bottom: 25px;
+        }
+        button {
+            flex: 1;
+            padding: 14px;
+            border: none;
+            border-radius: 10px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 1.08em;
+            transition: all 0.3s;
+        }
+        .btn-start { 
+            background: linear-gradient(90deg, #c026d3, #a855f7); 
+            color: white; 
+        }
+        .btn-start:hover { background: linear-gradient(90deg, #a855f7, #c026d3); transform: translateY(-3px); box-shadow: 0 0 20px rgba(192, 38, 211, 0.5); }
+        
+        .btn-pause { 
+            background: linear-gradient(90deg, #7e22ce, #6d28d9); 
+            color: white; 
+        }
+        .btn-pause:hover { background: linear-gradient(90deg, #6d28d9, #7e22ce); transform: translateY(-3px); }
+        
+        .btn-reset { 
+            background: #4c1d95; 
+            color: white; 
+        }
+        .btn-reset:hover { background: #6b21a8; transform: translateY(-3px); }
+
+        /* Estadísticas */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: #1a1033;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            border: 1px solid #7c3aed;
+        }
+        .stat-card h3 {
+            margin: 0 0 10px 0;
+            font-size: 0.95em;
+            color: #c4b5fd;
+        }
+        .stat-value {
+            font-size: 2.35em;
+            font-weight: bold;
+            font-family: monospace;
+        }
+
+        /* Gráfico */
+        .chart-container {
+            position: relative;
+            height: 400px;
+            background: #0f081f;
+            border-radius: 12px;
+            padding: 16px;
+            border: 1px solid #6b46c1;
+            margin-bottom: 20px;
+        }
+
+        /* Terminal / Log */
+        .terminal {
+            background: #0a0519;
+            border: 1px solid #6b46c1;
+            border-radius: 12px;
+            padding: 15px;
+            height: 220px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.88em;
+            color: #a5b4fc;
+            box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.6);
+        }
+        .terminal p {
+            margin: 4px 0;
+            line-height: 1.4;
+        }
+        .log-info { color: #a5b4fc; }
+        .log-success { color: #67e8f9; }
+        .log-warning { color: #facc15; }
+        .log-error { color: #f472b6; }
+        .terminal-header {
+            color: #c084fc;
+            font-weight: bold;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #6b46c1;
+            padding-bottom: 6px;
+        }
+
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1em;
+        }
+        .legend-color {
+            width: 22px;
+            height: 5px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="panel">
+        <h2>🦟 SIMULADOR DE DENGUE - MODELO SIR </h2>
+        
+        <div class="controls">
+            <div class="control-group">
+                <label>Tasa de Transmisión (β) — Infectividad del mosquito 
+                    <span id="valBeta" class="val-display">0.45</span>
+                </label>
+                <input type="range" id="inBeta" min="0.1" max="1.2" step="0.05" value="0.45">
+            </div>
+            <div class="control-group">
+                <label>Tasa de Recuperación (γ) — Días promedio para recuperarse 
+                    <span id="valGamma" class="val-display">0.12</span>
+                </label>
+                <input type="range" id="inGamma" min="0.05" max="0.5" step="0.01" value="0.12">
+            </div>
+            <div class="control-group">
+                <label>Población Inicial Infectada 
+                    <span id="valInitialI" class="val-display">10</span>
+                </label>
+                <input type="range" id="inInitialI" min="1" max="100" step="1" value="10">
+            </div>
+        </div>
+
+        <div class="buttons">
+            <button class="btn-start" onclick="simuladorSIR.iniciar()">▶ INICIAR SIMULACIÓN</button>
+            <button class="btn-pause" id="btnPause" onclick="simuladorSIR.pausar()">⏸ PAUSAR</button>
+            <button class="btn-reset" onclick="simuladorSIR.reiniciar()">REINICIAR</button>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>Susceptibles (Sanos)</h3>
+                <div id="statS" class="stat-value" style="color: #67e8f9;">990</div>
+            </div>
+            <div class="stat-card">
+                <h3>Infectados Activos</h3>
+                <div id="statI" class="stat-value" style="color: #f472b6;">10</div>
+            </div>
+            <div class="stat-card">
+                <h3>Recuperados / Inmunes</h3>
+                <div id="statR" class="stat-value" style="color: #c084fc;">0</div>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <canvas id="grafico"></canvas>
+        </div>
+
+        <div class="legend">
+            <div class="legend-item"><span class="legend-color" style="background:#67e8f9;"></span> Susceptibles</div>
+            <div class="legend-item"><span class="legend-color" style="background:#f472b6;"></span> Infectados</div>
+            <div class="legend-item"><span class="legend-color" style="background:#c084fc;"></span> Recuperados</div>
+        </div>
+
+        
+        <div style="margin-top: 25px;">
+            <div class="terminal-header">TERMINAL DE EJECUCIÓN - HISTORIAL DE SIMULACIÓN</div>
+            <div class="terminal" id="terminal">
+                <p class="log-info">[SYSTEM] Sistema inicializado. Esperando comando para iniciar simulación...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let chart;
+        const simuladorSIR = {
+            N: 1000,
+            S: 990,
+            I: 10,
+            R: 0,
+            dia: 0,
+            beta: 0.45,
+            gamma: 0.12,
+            running: false,
+            paused: false,
+            historial: [],
+
+            log: function(msg, type = "info") {
+                const terminal = document.getElementById('terminal');
+                const p = document.createElement('p');
+                const time = new Date().toLocaleTimeString('es-ES', { hour12: false });
+                
+                p.className = `log-${type}`;
+                p.innerHTML = `<span style="color:#6b7280;">[${time}]</span> ${msg}`;
+                terminal.appendChild(p);
+                terminal.scrollTop = terminal.scrollHeight;
+            },
+
+            iniciar: function() {
+                if (this.running) return;
+                
+                this.reiniciarValores();
+                this.running = true;
+                this.paused = false;
+                document.getElementById('btnPause').innerText = "⏸ PAUSAR";
+
+                this.beta = parseFloat(document.getElementById('inBeta').value);
+                this.gamma = parseFloat(document.getElementById('inGamma').value);
+                
+                this.log("🚀 Iniciando simulación de propagación de Dengue...", "success");
+                this.log(`Parámetros: β = ${this.beta}, γ = ${this.gamma}, Infectados iniciales = ${this.I}`, "info");
+                
+                this.initChart();
+                this.loop();
+            },
+
+            pausar: function() {
+                this.paused = !this.paused;
+                document.getElementById('btnPause').innerText = this.paused ? "▶ REANUDAR" : "⏸ PAUSAR";
+                this.log(this.paused ? "⏸ Simulación pausada por el usuario." : "▶ Simulación reanudada.", "warning");
+            },
+
+            reiniciar: function() {
+                this.running = false;
+                if (chart) chart.destroy();
+                this.reiniciarValores();
+                document.getElementById('terminal').innerHTML = '<p class="log-info">[SYSTEM] Sistema reiniciado.</p>';
+                document.getElementById('btnPause').innerText = "⏸ PAUSAR";
+                this.log("🔄 Simulación reiniciada completamente.", "info");
+            },
+
+            reiniciarValores: function() {
+                this.S = 990;
+                this.I = parseFloat(document.getElementById('inInitialI').value) || 10;
+                this.R = 0;
+                this.dia = 0;
+                this.historial = [];
+                
+                document.getElementById('statS').innerText = Math.round(this.S);
+                document.getElementById('statI').innerText = Math.round(this.I);
+                document.getElementById('statR').innerText = Math.round(this.R);
+            },
+
+            initChart: function() {
+                const ctx = document.getElementById('grafico');
+                if (chart) chart.destroy();
+
+                chart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [
+                            { label: 'Susceptibles (S)', data: [], borderColor: '#67e8f9', backgroundColor: 'rgba(103, 232, 249, 0.12)', tension: 0.4, borderWidth: 3.5 },
+                            { label: 'Infectados (I)', data: [], borderColor: '#f472b6', backgroundColor: 'rgba(244, 114, 182, 0.12)', tension: 0.4, borderWidth: 3.5 },
+                            { label: 'Recuperados (R)', data: [], borderColor: '#c084fc', backgroundColor: 'rgba(192, 132, 252, 0.12)', tension: 0.4, borderWidth: 3.5 }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        animation: { duration: 400 },
+                        scales: {
+                            x: { title: { display: true, text: 'Días transcurridos', color: '#c4b5fd' }, grid: { color: '#3b2a6b' }, ticks: { color: '#c4b5fd' } },
+                            y: { min: 0, max: this.N, title: { display: true, text: 'Número de personas', color: '#c4b5fd' }, grid: { color: '#3b2a6b' }, ticks: { color: '#c4b5fd' } }
+                        },
+                        plugins: {
+                            legend: { position: 'top', labels: { color: '#e0d4ff', font: { size: 14 }, padding: 18 } },
+                            tooltip: { mode: 'index', intersect: false, backgroundColor: '#1a1033' }
+                        }
+                    }
+                });
+            },
+
+            loop: function() {
+                if (!this.running || this.paused) {
+                    requestAnimationFrame(() => this.loop());
+                    return;
+                }
+
+                const nuevosInfectados = (this.beta * this.S * this.I) / this.N;
+                const nuevosRecuperados = this.gamma * this.I;
+
+                this.S = Math.max(0, this.S - nuevosInfectados);
+                this.I = Math.max(0, this.I + nuevosInfectados - nuevosRecuperados);
+                this.R = Math.min(this.N, this.R + nuevosRecuperados);
+                this.dia++;
+
+                this.historial.push({ dia: this.dia, S: this.S, I: this.I, R: this.R });
+
+                document.getElementById('statS').innerText = Math.round(this.S);
+                document.getElementById('statI').innerText = Math.round(this.I);
+                document.getElementById('statR').innerText = Math.round(this.R);
+
+                if (chart) {
+                    chart.data.labels = this.historial.map(h => h.dia);
+                    chart.data.datasets[0].data = this.historial.map(h => Math.round(h.S));
+                    chart.data.datasets[1].data = this.historial.map(h => Math.round(h.I));
+                    chart.data.datasets[2].data = this.historial.map(h => Math.round(h.R));
+                    chart.update('none');
+                }
+
+                
+                if (this.dia % 10 === 0) {
+                    this.log(`Día ${this.dia} | Infectados: ${Math.round(this.I)} | Recuperados: ${Math.round(this.R)}`, "info");
+                }
+
+                if (this.I > 0.5 && this.dia < 300) {
+                    setTimeout(() => this.loop(), 65);
+                } else {
+                    this.running = false;
+                    this.log("✅ Simulación finalizada. Epidemia controlada.", "success");
+                }
+            }
+        };
+
+       
+        function actualizarValores() {
+            document.getElementById('valBeta').innerText = parseFloat(document.getElementById('inBeta').value).toFixed(2);
+            document.getElementById('valGamma').innerText = parseFloat(document.getElementById('inGamma').value).toFixed(2);
+            document.getElementById('valInitialI').innerText = document.getElementById('inInitialI').value;
+        }
+
+        document.getElementById('inBeta').addEventListener('input', actualizarValores);
+        document.getElementById('inGamma').addEventListener('input', actualizarValores);
+        document.getElementById('inInitialI').addEventListener('input', actualizarValores);
+    </script>
+</body>
+</html>
